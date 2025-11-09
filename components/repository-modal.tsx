@@ -41,6 +41,10 @@ export function RepositoryModal({ repository, username, onClose }: RepositoryMod
         }),
       })
 
+      if (!response.ok) {
+        throw new Error(`Request failed with status ${response.status}`)
+      }
+
       const data = await response.json()
       if (data.summary) {
         setSummary(data.summary)

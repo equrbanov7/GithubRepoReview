@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { ChevronDown, MapPin, LinkIcon, Users, GitBranch } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { UserSummary } from "./user-summary"
 
 interface UserDetailsProps {
   user: {
@@ -97,6 +98,8 @@ export function UserDetails({ user }: UserDetailsProps) {
               </div>
             )}
           </div>
+
+          <UserSummary user={user} />
         </div>
       )}
     </div>
