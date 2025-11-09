@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { Star, Clock, Trash2, ChevronDown } from "lucide-react"
 
 interface SearchHistory {
@@ -14,63 +14,105 @@ interface RecentSearchesProps {
   currentUser?: string
 }
 
+const STORAGE_KEY = "github_searches"
+
+const sortByTimestamp = (items: SearchHistory[]) =>
+  [...items].sort((a, b) => b.timestamp - a.timestamp)
+
 export function RecentSearches({ onSelectUser, currentUser }: RecentSearchesProps) {
   const [searches, setSearches] = useState<SearchHistory[]>([])
   const [isExpanded, setIsExpanded] = useState(false)
+  const hasHydratedRef = useRef(false)
 
   useEffect(() => {
-    const stored = localStorage.getItem("github_searches")
-    if (stored) {
-      try {
+    if (typeof window === "undefined") {
+      return
+    }
+
+    try {
+      const stored = window.localStorage.getItem(STORAGE_KEY)
+      if (stored) {
         const parsed = JSON.parse(stored) as SearchHistory[]
-        setSearches(parsed.sort((a, b) => b.timestamp - a.timestamp))
-      } catch (error) {
-        console.error("Error parsing searches:", error)
+        setSearches(sortByTimestamp(parsed))
       }
+    } catch (error) {
+      console.error("Error parsing stored searches:", error)
+    } finally {
+      hasHydratedRef.current = true
     }
   }, [])
 
-  const addSearch = (username: string) => {
+  useEffect(() => {
+    if (!hasHydratedRef.current || typeof window === "undefined") {
+      return
+    }
+
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(searches))
+    } catch (error) {
+      console.error("Error saving searches to storage:", error)
+    }
+  }, [searches])
+
+  const addSearch = useCallback((username: string) => {
+    const trimmed = username.trim()
+    if (!trimmed) {
+      return
+    }
+
     setSearches((prev) => {
-      const existing = prev.find((s) => s.username.toLowerCase() === username.toLowerCase())
+      const normalized = trimmed.toLowerCase()
+      const existing = prev.find((s) => s.username.toLowerCase() === normalized)
+      const timestamp = Date.now()
+
       let updated: SearchHistory[]
 
       if (existing) {
         updated = prev.map((s) =>
-          s.username.toLowerCase() === username.toLowerCase() ? { ...s, timestamp: Date.now() } : s,
+          s.username.toLowerCase() === normalized ? { ...s, timestamp } : s,
         )
       } else {
-        updated = [{ username, isFavorite: false, timestamp: Date.now() }, ...prev]
+        updated = [...prev, { username: trimmed, isFavorite: false, timestamp }]
       }
 
-      updated = updated.slice(0, 10)
-      localStorage.setItem("github_searches", JSON.stringify(updated))
-      return updated
+      return sortByTimestamp(updated).slice(0, 10)
     })
-  }
-
-  const toggleFavorite = (username: string) => {
-    setSearches((prev) => {
-      const updated = prev.map((s) => (s.username === username ? { ...s, isFavorite: !s.isFavorite } : s))
-      localStorage.setItem("github_searches", JSON.stringify(updated))
-      return updated
-    })
-  }
-
-  const deleteSearch = (username: string) => {
-    setSearches((prev) => {
-      const updated = prev.filter((s) => s.username !== username)
-      localStorage.setItem("github_searches", JSON.stringify(updated))
-      return updated
-    })
-  }
-
-  useEffect(() => {
-    ;(window as any).__addGitHubSearch = addSearch
   }, [])
 
-  const favorites = searches.filter((s) => s.isFavorite)
-  const recent = searches.filter((s) => !s.isFavorite)
+  const toggleFavorite = useCallback((username: string) => {
+    setSearches((prev) =>
+      prev.map((s) =>
+        s.username === username ? { ...s, isFavorite: !s.isFavorite } : s,
+      ),
+    )
+  }, [])
+
+  const deleteSearch = useCallback((username: string) => {
+    setSearches((prev) => prev.filter((s) => s.username !== username))
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return
+    }
+
+    ;(window as any).__addGitHubSearch = addSearch
+
+    return () => {
+      if ((window as any).__addGitHubSearch === addSearch) {
+        delete (window as any).__addGitHubSearch
+      }
+    }
+  }, [addSearch])
+
+  const favorites = useMemo(
+    () => sortByTimestamp(searches.filter((s) => s.isFavorite)),
+    [searches],
+  )
+  const recent = useMemo(
+    () => sortByTimestamp(searches.filter((s) => !s.isFavorite)),
+    [searches],
+  )
 
   return (
     <div className="space-y-4">

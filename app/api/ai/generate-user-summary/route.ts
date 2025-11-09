@@ -7,18 +7,23 @@ export async function POST(req: Request) {
     return Response.json({ error: "Missing GPT API key" }, { status: 500 })
   }
 
-  const { repoName, repoDescription, topics } = await req.json()
+  const { username, name, bio, location, followers, following, publicRepos } = await req.json()
 
-  if (!repoName) {
-    return Response.json({ error: "Repository name is required" }, { status: 400 })
+  if (!username) {
+    return Response.json({ error: "Username is required" }, { status: 400 })
   }
 
-  const prompt = `Generate a concise 2-3 sentence technical summary of a GitHub repository with the following details:
-Repository Name: ${repoName}
-Description: ${repoDescription || "No description provided"}
-Topics: ${topics?.length ? topics.join(", ") : "No topics"}
+  const prompt = `Create a concise 2-3 sentence summary of the following GitHub user. Highlight their focus areas, strengths, and any notable insights from the data provided.
 
-Provide a clear, professional summary that explains what this repository does and its primary purpose. Be technical but accessible.`
+Username: ${username}
+Name: ${name || "Not provided"}
+Bio: ${bio || "Not provided"}
+Location: ${location || "Not provided"}
+Followers: ${followers}
+Following: ${following}
+Public Repositories: ${publicRepos}
+
+Keep the tone professional and informative.`
 
   try {
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -32,11 +37,11 @@ Provide a clear, professional summary that explains what this repository does an
         messages: [
           {
             role: "system",
-            content: "You are a senior software engineer who explains GitHub repositories clearly and concisely.",
+            content: "You are a helpful assistant that summarizes GitHub profiles for recruiters and engineering managers.",
           },
           { role: "user", content: prompt },
         ],
-        temperature: 0.7,
+        temperature: 0.6,
         max_tokens: 320,
       }),
     })
@@ -55,7 +60,7 @@ Provide a clear, professional summary that explains what this repository does an
 
     return Response.json({ summary })
   } catch (error) {
-    console.error("Error generating summary:", error)
+    console.error("Error generating user summary:", error)
     return Response.json({ error: "Failed to generate summary" }, { status: 500 })
   }
 }
